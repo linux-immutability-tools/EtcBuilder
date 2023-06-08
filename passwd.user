@@ -1,0 +1,4 @@
+pulse:*:563:563:PulseAudio System User:/nonexistent:/usr/sbin/nologin
+_sndio:*:702:702:sndio privsep:/var/empty:/usr/sbin/nologin
+cyrus:*:60:60:the cyrus mail server:/nonexistent:/usr/sbin/nologin
+webcamd:*:145:145:Webcamd user:/var/empty:/usr/sbin/nologin

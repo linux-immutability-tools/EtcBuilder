@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/linux-immutability-tools/EtcBuilder/core"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 func NewBuildCommand() *cobra.Command {
@@ -24,6 +23,6 @@ func buildCommand(_ *cobra.Command, args []string) error {
 	} else if len(args) <= 2 {
 		return fmt.Errorf("not enough directories specified")
 	}
-	core.MergeSpecialFile(os.File{}, os.File{}, os.File{})
+	core.MergeSpecialFile("./passwd.user", "./passwd.old", "./passwd.new")
 	return nil
 }

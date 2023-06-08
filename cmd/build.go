@@ -23,6 +23,9 @@ func buildCommand(_ *cobra.Command, args []string) error {
 	} else if len(args) <= 2 {
 		return fmt.Errorf("not enough directories specified")
 	}
-	core.MergeSpecialFile("./passwd.user", "./passwd.old", "./passwd.new")
+	err := core.MergeSpecialFile("./passwd.user", "./passwd.old", "./passwd.new", "./passwd.old")
+	if err != nil {
+		return err
+	}
 	return nil
 }

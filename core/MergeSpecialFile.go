@@ -1,13 +1,15 @@
 package core
 
 import (
-	"fmt"
 	"github.com/sergi/go-diff/diffmatchpatch"
 	"os"
 )
 
-func MergeSpecialFile(user string, old string, new string) error {
-
+func MergeSpecialFile(user string, old string, new string, out string) error {
+	// Merges special files
+	// Files get merged by first forming a diff between the old file and the user file
+	// Then applying the generated patch to the new file
+	// The new file then gets written to the given destination
 	userData, err := os.ReadFile(user)
 	if err != nil {
 		return err
@@ -25,19 +27,14 @@ func MergeSpecialFile(user string, old string, new string) error {
 	diffs := dmp.DiffMain(string(oldData), string(userData), false)
 	patches := dmp.PatchMake(string(oldData), diffs)
 
-	patchString := dmp.PatchToText(patches)
-
-	fmt.Println("Old: \n" + string(oldData))
-	fmt.Println()
-	fmt.Println("User: \n" + string(userData))
-	fmt.Println()
-	fmt.Println("New: \n" + string(newData))
-	fmt.Println()
-	fmt.Println("Patch: \n" + patchString)
-
-	fmt.Println()
 	result, _ := dmp.PatchApply(patches, string(newData))
-	fmt.Println("Built: \n" + result)
-
+	filePerms, err := os.Stat(new)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(out, []byte(result), filePerms.Mode())
+	if err != nil {
+		return err
+	}
 	return nil
 }

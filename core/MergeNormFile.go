@@ -9,7 +9,9 @@ import (
 )
 
 func KeepUserFile(user os.File, new os.File) (bool, error) {
-
+	// Decide wether to keep the user file or use the new file
+	// Returns true if the user file should be kept
+	// False if the new file should be used
 	userFileHash, err := calculateHash(&user)
 	if err != nil {
 		return true, fmt.Errorf("failed to calculate hash of user file")

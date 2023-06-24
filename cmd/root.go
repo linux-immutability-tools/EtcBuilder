@@ -5,8 +5,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "fsguard",
-	Short: "A tool for verifying filesystem integrity",
+	Use:   "EtcBuilder",
+	Short: "A tool to generate an etc based on multiple etc states",
 }
 
 func init() {

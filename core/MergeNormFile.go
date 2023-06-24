@@ -8,17 +8,19 @@ import (
 	"strings"
 )
 
-func KeepUserFile(user os.File, new os.File) (bool, error) {
+func KeepUserFile(user string, new string) (bool, error) {
 	// Decide wether to keep the user file or use the new file
 	// Returns true if the user file should be kept
 	// False if the new file should be used
-	userFileHash, err := calculateHash(&user)
+	userFileHash, err := calculateHash(user)
 	if err != nil {
+		fmt.Printf("err: %v\n", err)
 		return true, fmt.Errorf("failed to calculate hash of user file")
 	}
 
-	newFilehash, err := calculateHash(&new)
+	newFilehash, err := calculateHash(new)
 	if err != nil {
+		fmt.Printf("err: %v\n", err)
 		return true, fmt.Errorf("failed to calculate hash of new file")
 	}
 
@@ -29,9 +31,13 @@ func KeepUserFile(user os.File, new os.File) (bool, error) {
 	return false, nil
 }
 
-func calculateHash(file *os.File) (string, error) {
+func calculateHash(file string) (string, error) {
 	hash := sha1.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	osFile, err := os.Open(file)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(hash, osFile); err != nil {
 		return "", err
 	}
 	hashInBytes := hash.Sum(nil)[:20]

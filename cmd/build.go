@@ -77,7 +77,7 @@ func fileHandler(f string, n string, fileInfo fs.FileInfo, newFileInfo fs.FileIn
 
 	if slices.Contains(settings.SpecialFiles, fileInfo.Name()) {
 		fmt.Printf("Special merging file %s\n", fileInfo.Name())
-		err := core.MergeSpecialFile(f, args[1]+"/"+strings.ReplaceAll(f, args[0], ""), n, args[3]+"/"+strings.ReplaceAll(f, args[0], ""))
+		err := core.MergeSpecialFile(f, args[0]+"/"+strings.ReplaceAll(f, args[0], ""), n, args[3]+"/"+strings.ReplaceAll(f, args[0], ""))
 		if err != nil {
 			return err
 		}
@@ -109,20 +109,52 @@ func buildCommand(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("not enough directories specified")
 	}
 
-	settings.GatherConfigFiles()
-
-	destFiles, err := os.ReadDir(args[3])
+	err := settings.GatherConfigFiles()
 	if err != nil {
 		return err
 	}
 
-	err = clearDirectory(destFiles, args[3])
+	destFiles, err := os.ReadDir(args[2])
+	if err != nil {
+		return err
+	}
+
+	err = clearDirectory(destFiles, args[2])
 	if err != nil {
 		return err
 	}
 
 	err = filepath.Walk(args[0], func(userPath string, userInfo os.FileInfo, e error) error {
-		err := filepath.Walk(args[2], func(newPath string, newInfo os.FileInfo, err error) error {
+		err := filepath.Walk(args[1], func(newPath string, newInfo os.FileInfo, err error) error {
+			return fileHandler(userPath, newPath, userInfo, newInfo, args)
+		})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ExtBuildCommand(currentEtc string, newSystem string, newUser string) error {
+	err := settings.GatherConfigFiles()
+	if err != nil {
+		return err
+	}
+
+	destFiles, err := os.ReadDir(newUser)
+	if err != nil {
+		return err
+	}
+
+	err = clearDirectory(destFiles, newUser)
+	if err != nil {
+		return err
+	}
+
+	args := []string{currentEtc, newSystem, newUser}
+	err = filepath.Walk(currentEtc, func(userPath string, userInfo os.FileInfo, e error) error {
+		err := filepath.Walk(newSystem, func(newPath string, newInfo os.FileInfo, err error) error {
 			return fileHandler(userPath, newPath, userInfo, newInfo, args)
 		})
 		return err

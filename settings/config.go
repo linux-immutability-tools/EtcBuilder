@@ -17,7 +17,7 @@ type Config struct {
 }
 
 func GatherConfigFiles() error {
-	configFiles, err := os.ReadDir("/usr/share/etcbuilder")
+	configFiles, err := os.ReadDir("/usr/share/etcbuilder/")
 	if err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func GatherConfigFiles() error {
 		if !strings.Contains(config.Name(), ".toml") {
 			continue
 		}
-		parseConfigFile("/usr/share/etcbuilder" + config.Name())
+		parseConfigFile("/usr/share/etcbuilder/" + config.Name())
 	}
 
 	return nil

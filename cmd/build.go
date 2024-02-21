@@ -70,33 +70,33 @@ func clearDirectory(fileList []fs.DirEntry, root string) error {
 	return nil
 }
 
-func fileHandler(f string, n string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, args []string) error {
-	if fileInfo.IsDir() || newFileInfo.IsDir() || fileInfo.Name() != newFileInfo.Name() {
+func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, newSys string, oldSys string, newUser string, oldUser string) error {
+	if fileInfo.IsDir() || newFileInfo.IsDir() || strings.ReplaceAll(userFile, oldUser, "") != strings.ReplaceAll(newSysFile, newSys, "") {
 		return nil
 	}
 
-	if slices.Contains(settings.SpecialFiles, fileInfo.Name()) {
+	if slices.Contains(settings.SpecialFiles, strings.ReplaceAll(newSysFile, strings.TrimRight(newSys, "/")+"/", "")) {
 		fmt.Printf("Special merging file %s\n", fileInfo.Name())
-		err := core.MergeSpecialFile(f, args[0]+"/"+strings.ReplaceAll(f, args[0], ""), n, args[3]+"/"+strings.ReplaceAll(f, args[0], ""))
+		err := core.MergeSpecialFile(userFile, oldSys+"/"+strings.ReplaceAll(userFile, oldUser, ""), newSysFile, newUser+"/"+strings.ReplaceAll(userFile, oldUser, ""))
 		if err != nil {
 			return err
 		}
 	} else if slices.Contains(settings.OverwriteFiles, fileInfo.Name()) {
 		fmt.Printf("Overwriting User %[1]s with New %[1]s!\n", fileInfo.Name()) // Don't have to do anything when overwriting
 	} else {
-		keep, err := core.KeepUserFile(f, n)
+		keep, err := core.KeepUserFile(userFile, newSysFile)
 		if err != nil {
 			return err
 		}
 		if keep {
-			fmt.Printf("Keeping User file %s\n", f)
-			dirInfo, err := os.Stat(strings.TrimRight(f, fileInfo.Name()))
+			fmt.Printf("Keeping User file %s\n", userFile)
+			dirInfo, err := os.Stat(strings.TrimRight(userFile, fileInfo.Name()))
 			if err != nil {
 				return err
 			}
-			destFilePath := args[3] + "/" + strings.ReplaceAll(f, args[0], "")
+			destFilePath := newUser + "/" + strings.ReplaceAll(userFile, oldUser, "")
 			os.Mkdir(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
-			copyFile(f, destFilePath)
+			copyFile(userFile, destFilePath)
 		}
 	}
 	return nil
@@ -114,19 +114,24 @@ func buildCommand(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	destFiles, err := os.ReadDir(args[2])
+	oldSys := args[0]
+	newSys := args[1]
+	oldUser := args[2]
+	newUser := args[3]
+
+	newUserFiles, err := os.ReadDir(newUser)
 	if err != nil {
 		return err
 	}
 
-	err = clearDirectory(destFiles, args[2])
+	err = clearDirectory(newUserFiles, newUser)
 	if err != nil {
 		return err
 	}
 
-	err = filepath.Walk(args[0], func(userPath string, userInfo os.FileInfo, e error) error {
-		err := filepath.Walk(args[1], func(newPath string, newInfo os.FileInfo, err error) error {
-			return fileHandler(userPath, newPath, userInfo, newInfo, args)
+	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
+		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
+			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
 		})
 		return err
 	})
@@ -136,7 +141,7 @@ func buildCommand(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func ExtBuildCommand(currentEtc string, newSystem string, newUser string) error {
+func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser string) error {
 	err := settings.GatherConfigFiles()
 	if err != nil {
 		return err
@@ -152,10 +157,9 @@ func ExtBuildCommand(currentEtc string, newSystem string, newUser string) error 
 		return err
 	}
 
-	args := []string{currentEtc, newSystem, newUser}
-	err = filepath.Walk(currentEtc, func(userPath string, userInfo os.FileInfo, e error) error {
-		err := filepath.Walk(newSystem, func(newPath string, newInfo os.FileInfo, err error) error {
-			return fileHandler(userPath, newPath, userInfo, newInfo, args)
+	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
+		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
+			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
 		})
 		return err
 	})

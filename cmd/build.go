@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,12 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+type NoMatchError struct{}
+
+func (m *NoMatchError) Error() string {
+	return "Specified files are not the same"
+}
 
 func NewBuildCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -71,8 +78,10 @@ func clearDirectory(fileList []fs.DirEntry, root string) error {
 }
 
 func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, newSys string, oldSys string, newUser string, oldUser string) error {
-	if fileInfo.IsDir() || newFileInfo.IsDir() || strings.ReplaceAll(userFile, oldUser, "") != strings.ReplaceAll(newSysFile, newSys, "") {
+	if fileInfo.IsDir() || newFileInfo.IsDir() {
 		return nil
+	} else if strings.ReplaceAll(userFile, oldUser, "") != strings.ReplaceAll(newSysFile, newSys, "") {
+		return &NoMatchError{}
 	}
 
 	if slices.Contains(settings.SpecialFiles, strings.ReplaceAll(newSysFile, strings.TrimRight(newSys, "/")+"/", "")) {
@@ -95,8 +104,11 @@ func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFi
 				return err
 			}
 			destFilePath := newUser + "/" + strings.ReplaceAll(userFile, oldUser, "")
-			os.Mkdir(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
-			copyFile(userFile, destFilePath)
+			os.MkdirAll(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
+			err = copyFile(userFile, destFilePath)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -129,14 +141,37 @@ func buildCommand(_ *cobra.Command, args []string) error {
 		return err
 	}
 
+	var userPaths []string
 	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
+		isInSys := false
 		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
-			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
+			err = fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
+			if err == nil {
+				isInSys = true
+			} else if errors.Is(err, &NoMatchError{}) {
+				isInSys = false
+				return nil
+			}
+			return err
 		})
+		if isInSys == false {
+			userPaths = append(userPaths, userPath)
+		}
 		return err
 	})
 	if err != nil {
 		return err
+	}
+	for _, userFile := range userPaths {
+		fmt.Printf("Copying user file %s\n", userFile)
+		fileInfo, err := os.Stat(userFile)
+		dirInfo, err := os.Stat(strings.TrimRight(userFile, fileInfo.Name()))
+		if err != nil {
+			return err
+		}
+		destFilePath := newUser + "/" + strings.ReplaceAll(userFile, oldUser, "")
+		os.MkdirAll(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
+		copyFile(userFile, destFilePath)
 	}
 	return nil
 }
@@ -157,14 +192,36 @@ func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser strin
 		return err
 	}
 
+	var userPaths []string
 	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
+		isInSys := false
 		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
-			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
+			err = fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
+			if err == nil {
+				isInSys = true
+			} else if errors.Is(err, &NoMatchError{}) {
+				return nil
+			}
+			return err
 		})
+		if isInSys == false {
+			userPaths = append(userPaths, userPath)
+		}
 		return err
 	})
 	if err != nil {
 		return err
+	}
+	for _, userFile := range userPaths {
+		fmt.Printf("Copying user file %s\n", userFile)
+		fileInfo, err := os.Stat(userFile)
+		dirInfo, err := os.Stat(strings.TrimRight(userFile, fileInfo.Name()))
+		if err != nil {
+			return err
+		}
+		destFilePath := newUser + "/" + strings.ReplaceAll(userFile, oldUser, "")
+		os.MkdirAll(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
+		copyFile(userFile, destFilePath)
 	}
 	return nil
 }

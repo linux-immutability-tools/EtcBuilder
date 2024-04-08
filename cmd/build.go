@@ -70,11 +70,21 @@ func clearDirectory(fileList []fs.DirEntry, root string) error {
 	return nil
 }
 
-func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, newSys string, oldSys string, newUser string, oldUser string) error {
-	if fileInfo.IsDir() || newFileInfo.IsDir() || strings.ReplaceAll(userFile, oldUser, "") != strings.ReplaceAll(newSysFile, newSys, "") {
-		return nil
+func copyFileWithDirs(oldPath string, oldBasePath string, newBasePath string, filename string) error {
+	dirInfo, err := os.Stat(strings.TrimRight(oldPath, filename))
+	if err != nil {
+		return err
 	}
+	destFilePath := newBasePath + "/" + strings.ReplaceAll(oldPath, oldBasePath, "")
+	err = os.MkdirAll(strings.TrimRight(destFilePath, filename), dirInfo.Mode())
+	if err != nil {
+		return err
+	}
+	err = copyFile(oldPath, destFilePath)
+	return err
+}
 
+func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, newSys string, oldSys string, newUser string, oldUser string) error {
 	if slices.Contains(settings.SpecialFiles, strings.ReplaceAll(newSysFile, strings.TrimRight(newSys, "/")+"/", "")) {
 		fmt.Printf("Special merging file %s\n", fileInfo.Name())
 		err := core.MergeSpecialFile(userFile, oldSys+"/"+strings.ReplaceAll(userFile, oldUser, ""), newSysFile, newUser+"/"+strings.ReplaceAll(userFile, oldUser, ""))
@@ -90,16 +100,46 @@ func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFi
 		}
 		if keep {
 			fmt.Printf("Keeping User file %s\n", userFile)
-			dirInfo, err := os.Stat(strings.TrimRight(userFile, fileInfo.Name()))
+			err = copyFileWithDirs(userFile, oldUser, newUser, fileInfo.Name())
 			if err != nil {
 				return err
 			}
-			destFilePath := newUser + "/" + strings.ReplaceAll(userFile, oldUser, "")
-			os.Mkdir(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
-			copyFile(userFile, destFilePath)
+
 		}
 	}
 	return nil
+}
+
+func buildNewSys(oldSys string, newSys string, oldUser string, newUser string) error {
+	err := filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
+		if userInfo.IsDir() {
+			return nil
+		}
+		fileInNewSys := false
+		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
+			if newInfo.IsDir() {
+				return nil
+			}
+			if strings.ReplaceAll(userPath, oldUser, "") != strings.ReplaceAll(newPath, newSys, "") {
+				return nil
+			}
+
+			fileInNewSys = true
+			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
+		})
+		if err != nil {
+			return err
+		}
+		if !fileInNewSys {
+			fmt.Printf("Keeping User file %s\n", userPath)
+			err = copyFileWithDirs(userPath, oldUser, newUser, userInfo.Name())
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	})
+	return err
 }
 
 func buildCommand(_ *cobra.Command, args []string) error {
@@ -129,16 +169,9 @@ func buildCommand(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
-		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
-			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
-		})
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	return nil
+	err = buildNewSys(oldSys, newSys, oldUser, newUser)
+
+	return err
 }
 
 func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser string) error {
@@ -157,14 +190,7 @@ func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser strin
 		return err
 	}
 
-	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
-		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
-			return fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
-		})
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	return nil
+	err = buildNewSys(oldSys, newSys, oldUser, newUser)
+
+	return err
 }

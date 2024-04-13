@@ -200,6 +200,7 @@ func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser strin
 			if err == nil {
 				isInSys = true
 			} else if errors.Is(err, &NoMatchError{}) {
+				isInSys = false
 				return nil
 			}
 			return err

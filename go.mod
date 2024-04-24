@@ -3,7 +3,6 @@ module github.com/linux-immutability-tools/EtcBuilder
 go 1.20
 
 require (
-	github.com/sergi/go-diff v1.3.1
 	github.com/spf13/cobra v1.7.0
 )
 

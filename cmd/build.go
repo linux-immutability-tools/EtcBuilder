@@ -22,6 +22,12 @@ func (m *NoMatchError) Error() string {
 	return "Specified files are not the same"
 }
 
+type NotAFileError struct{}
+
+func (m *NotAFileError) Error() string {
+	return "Specified paths do not point to regular file"
+}
+
 func NewBuildCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "build",
@@ -79,7 +85,7 @@ func clearDirectory(fileList []fs.DirEntry, root string) error {
 
 func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, newSys string, oldSys string, newUser string, oldUser string) error {
 	if fileInfo.IsDir() || newFileInfo.IsDir() {
-		return nil
+		return &NotAFileError{}
 	} else if strings.ReplaceAll(userFile, oldUser, "") != strings.ReplaceAll(newSysFile, newSys, "") {
 		return &NoMatchError{}
 	}
@@ -144,12 +150,14 @@ func buildCommand(_ *cobra.Command, args []string) error {
 	var userPaths []string
 	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
 		isInSys := false
+		if userInfo.IsDir() {
+			return nil
+		}
 		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
 			err = fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
 			if err == nil {
 				isInSys = true
-			} else if errors.Is(err, &NoMatchError{}) {
-				isInSys = false
+			} else if errors.Is(err, &NoMatchError{}) || errors.Is(err, &NotAFileError{}) {
 				return nil
 			}
 			return err
@@ -195,12 +203,14 @@ func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser strin
 	var userPaths []string
 	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
 		isInSys := false
+		if userInfo.IsDir() {
+			return nil
+		}
 		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
 			err = fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
 			if err == nil {
 				isInSys = true
-			} else if errors.Is(err, &NoMatchError{}) {
-				isInSys = false
+			} else if errors.Is(err, &NoMatchError{}) || errors.Is(err, &NotAFileError{}) {
 				return nil
 			}
 			return err

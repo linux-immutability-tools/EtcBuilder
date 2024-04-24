@@ -1,9 +1,59 @@
 package core
 
 import (
-	"github.com/sergi/go-diff/diffmatchpatch"
 	"os"
+	"slices"
+	"strings"
 )
+
+func removeEmptyLines(lines []string) []string {
+	newLines := []string{}
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			newLines = append(newLines, line)
+		}
+	}
+	return newLines
+}
+
+func createLineDiff(baseData, modifiedData string) (added, removed []string) {
+	oldLines := strings.Split(baseData, "\n")
+	newLines := strings.Split(modifiedData, "\n")
+	oldLines = removeEmptyLines(oldLines)
+	newLines = removeEmptyLines(newLines)
+
+	for _, line := range oldLines {
+		if !slices.Contains(newLines, line) {
+			removed = append(removed, line)
+		}
+	}
+	for _, line := range newLines {
+		if !slices.Contains(oldLines, line) {
+			added = append(added, line)
+		}
+	}
+
+	return
+}
+
+func applyLineDiff(added, removed []string, data string) string {
+	dataLines := strings.Split(data, "\n")
+	dataLines = removeEmptyLines(dataLines)
+
+	for _, line := range removed {
+		pos := slices.Index(dataLines, line)
+		if pos >= 0 {
+			dataLines = slices.Delete(dataLines, pos, pos+1)
+		}
+	}
+	for _, line := range added {
+		if !slices.Contains(dataLines, line) {
+			dataLines = append(dataLines, line)
+		}
+	}
+
+	return strings.Join(dataLines, "\n") + "\n"
+}
 
 func MergeSpecialFile(user string, old string, new string, out string) error {
 	// Merges special files
@@ -23,11 +73,9 @@ func MergeSpecialFile(user string, old string, new string, out string) error {
 		return err
 	}
 
-	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(string(oldData), string(userData), false)
-	patches := dmp.PatchMake(string(oldData), diffs)
+	added, removed := createLineDiff(string(oldData), string(userData))
 
-	result, _ := dmp.PatchApply(patches, string(newData))
+	result := applyLineDiff(added, removed, string(newData))
 	filePerms, err := os.Stat(new)
 	if err != nil {
 		return err

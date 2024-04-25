@@ -39,24 +39,6 @@ func NewBuildCommand() *cobra.Command {
 	return cmd
 }
 
-func getCommonPath(s1 string, s2 string) string {
-	paths1 := strings.Split(s1, "/")
-	paths2 := strings.Split(s2, "/")
-	var commonPath string
-	if strings.HasPrefix(s1, "/") {
-		commonPath = "/"
-	}
-
-	for i, path := range paths1 {
-		if filepath.Join(commonPath, path) == filepath.Join(commonPath, paths2[i]) {
-			commonPath = filepath.Join(commonPath, path)
-		} else {
-			break
-		}
-	}
-	return commonPath
-}
-
 func copyFile(source string, target string) error {
 
 	fin, err := os.Open(source)
@@ -101,25 +83,26 @@ func clearDirectory(fileList []fs.DirEntry, root string) error {
 	return nil
 }
 
+func copySymlink(userFile, oldUser, newUser string) error {
+	sym, err := os.Readlink(userFile)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Creating symlink", userFile, "->", sym)
+	pathRel := strings.TrimPrefix(userFile, oldUser)
+	newLink := filepath.Join(newUser, pathRel)
+	err = os.Symlink(sym, newLink)
+	return err
+}
+
 func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFileInfo fs.FileInfo, newSys string, oldSys string, newUser string, oldUser string) error {
 	if fileInfo.IsDir() || newFileInfo.IsDir() {
 		return &NotAFileError{}
-	} else if strings.HasPrefix(fileInfo.Mode().Type().String(), "L") {
-		sym, err := filepath.EvalSymlinks(userFile)
-		if err != nil && strings.HasSuffix(err.Error(), "no such file or directory") {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		linkPath := strings.TrimPrefix(sym, getCommonPath(userFile, sym)+"/")
-		err = os.Chdir(newUser)
-		if err != nil {
-			return err
-		}
-		err = os.Symlink(strings.TrimPrefix(linkPath, getCommonPath(userFile, sym)), strings.TrimPrefix(userFile, getCommonPath(userFile, sym)+"/"))
-		return err
 	} else if strings.ReplaceAll(userFile, oldUser, "") != strings.ReplaceAll(newSysFile, newSys, "") {
 		return &NoMatchError{}
+	} else if strings.HasPrefix(fileInfo.Mode().Type().String(), "L") {
+		err := copySymlink(userFile, oldUser, newUser)
+		return err
 	}
 
 	if slices.Contains(settings.SpecialFiles, strings.ReplaceAll(newSysFile, strings.TrimRight(newSys, "/")+"/", "")) {
@@ -212,8 +195,18 @@ func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser strin
 		return err
 	}
 	for _, userFile := range userPaths {
+		fileInfo, err := os.Lstat(userFile)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(fileInfo.Mode().Type().String(), "L") {
+			err = copySymlink(userFile, oldUser, newUser)
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		fmt.Printf("Copying user file %s\n", userFile)
-		fileInfo, err := os.Stat(userFile)
 		dirInfo, err := os.Stat(strings.TrimRight(userFile, fileInfo.Name()))
 		if err != nil {
 			return err

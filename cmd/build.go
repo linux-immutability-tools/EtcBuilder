@@ -106,7 +106,7 @@ func fileHandler(userFile string, newSysFile string, fileInfo fs.FileInfo, newFi
 		return &NotAFileError{}
 	} else if strings.HasPrefix(fileInfo.Mode().Type().String(), "L") {
 		sym, err := filepath.EvalSymlinks(userFile)
-		if strings.HasSuffix(err.Error(), "no such file or directory") {
+		if err != nil && strings.HasSuffix(err.Error(), "no such file or directory") {
 			return nil
 		} else if err != nil {
 			return err

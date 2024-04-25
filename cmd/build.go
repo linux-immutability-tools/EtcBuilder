@@ -169,52 +169,7 @@ func buildCommand(_ *cobra.Command, args []string) error {
 	oldUser := args[2]
 	newUser := args[3]
 
-	newUserFiles, err := os.ReadDir(newUser)
-	if err != nil {
-		return err
-	}
-
-	err = clearDirectory(newUserFiles, newUser)
-	if err != nil {
-		return err
-	}
-
-	var userPaths []string
-	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
-		isInSys := false
-		if userInfo.IsDir() {
-			return nil
-		}
-		err := filepath.Walk(newSys, func(newPath string, newInfo os.FileInfo, err error) error {
-			err = fileHandler(userPath, newPath, userInfo, newInfo, newSys, oldSys, newUser, oldUser)
-
-			if err == nil {
-				isInSys = true
-			} else if errors.Is(err, &NoMatchError{}) || errors.Is(err, &NotAFileError{}) {
-				return nil
-			}
-			return err
-		})
-		if isInSys == false {
-			userPaths = append(userPaths, userPath)
-		}
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	for _, userFile := range userPaths {
-		fmt.Printf("Copying user file %s\n", userFile)
-		fileInfo, err := os.Stat(userFile)
-		dirInfo, err := os.Stat(strings.TrimRight(userFile, fileInfo.Name()))
-		if err != nil {
-			return err
-		}
-		destFilePath := newUser + "/" + strings.ReplaceAll(userFile, oldUser, "")
-		os.MkdirAll(strings.TrimRight(destFilePath, fileInfo.Name()), dirInfo.Mode())
-		copyFile(userFile, destFilePath)
-	}
-	return nil
+	return ExtBuildCommand(oldSys, newSys, oldUser, newUser)
 }
 
 func ExtBuildCommand(oldSys string, newSys string, oldUser string, newUser string) error {

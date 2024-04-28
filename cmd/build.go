@@ -66,11 +66,18 @@ func ExtBuildCommand(oldSys, newSys, oldUser, newUser string) error {
 	}
 
 	err = filepath.Walk(oldUser, func(userPath string, userInfo os.FileInfo, e error) error {
-		if userInfo.IsDir() {
-			return nil
-		}
 		userPathRel := strings.TrimPrefix(userPath, oldUser)
 		userPathRel = strings.TrimPrefix(userPathRel, "/")
+
+		if userInfo.IsDir() {
+			newUserDirAbs := filepath.Join(newUser, userPathRel)
+			err := os.MkdirAll(newUserDirAbs, 0o755)
+			if err != nil {
+				return err
+			}
+			err = os.Chmod(newUserDirAbs, userInfo.Mode().Perm())
+			return err
+		}
 
 		err = copyUserFile(userPathRel, oldSys, newSys, oldUser, newUser, userInfo)
 		if err != nil {
@@ -158,6 +165,16 @@ func copyRegular(fromPath, toPath string) error {
 		return err
 	}
 	defer destination.Close()
+
+	fromInfo, err := os.Stat(fromPath)
+	if err != nil {
+		return err
+	}
+
+	err = destination.Chmod(fromInfo.Mode().Perm())
+	if err != nil {
+		return err
+	}
 
 	_, err = io.Copy(destination, source)
 	return err

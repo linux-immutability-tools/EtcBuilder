@@ -18,6 +18,9 @@ type Config struct {
 
 func GatherConfigFiles() error {
 	configFiles, err := os.ReadDir("/usr/share/etcbuilder/")
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

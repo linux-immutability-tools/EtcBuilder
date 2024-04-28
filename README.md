@@ -53,3 +53,6 @@ func main() {
 }
 ```
 
+### Build Flags
+
+The nodevfiles build tag removes support for device files.

@@ -21,6 +21,13 @@ func (m *UnknownFileError) Error() string {
 	return fmt.Sprintf("File type of %s is not supported", m.file)
 }
 
+type FileHandler struct {
+	IsFileSupported func(path string) bool
+	Handle          func(relativeFilePath, oldSysDir, newSysDir, oldUserDir, newUserDir string) error
+}
+
+var ExternalFileHandlers []FileHandler
+
 func NewBuildCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "build",
@@ -87,6 +94,13 @@ func copyUserFile(relUserFile, oldSysDir, newSysDir, oldUserDir, newUserDir stri
 	absUserFileNew := filepath.Join(newUserDir, relUserFile)
 
 	os.MkdirAll(filepath.Dir(absUserFileNew), 0o755)
+
+	for _, externalFileHandler := range ExternalFileHandlers {
+		if !externalFileHandler.IsFileSupported(absUserFileOld) {
+			continue
+		}
+		return externalFileHandler.Handle(relUserFile, oldSysDir, newSysDir, oldUserDir, newUserDir)
+	}
 
 	if slices.Contains(settings.SpecialFiles, relUserFile) {
 		fmt.Println("Special merging file", relUserFile)
